@@ -1,9 +1,9 @@
 pipeline {
   agent any
 
-      triggers {
-        pollSCM('H/5 * * * *')
-    }
+  triggers {
+    pollSCM('H/5 * * * *')
+  }
 
   options {
     ansiColor('xterm')
@@ -20,39 +20,46 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      steps { checkout scm }
+      steps {
+        checkout scm
+      }
     }
 
     stage('Validate') {
       steps {
-        sh 'terraform fmt -check -recursive -diff'
-        sh 'terraform init -input=false'
-        sh 'terraform validate'
+        bat 'terraform fmt -check -recursive -diff'
+        bat 'terraform init -input=false'
+        bat 'terraform validate'
       }
     }
 
     stage('Security Scan') {
       steps {
-        sh 'tflint --init && tflint --format compact'
-        sh 'tfsec . --format junit --out tfsec-report.xml --soft-fail'
-        sh 'tfsec . --minimum-severity HIGH'
+        bat 'tflint --init && tflint --format compact'
+        bat 'tfsec . --format junit --out tfsec-report.xml --soft-fail'
+        bat 'tfsec . --minimum-severity HIGH'
       }
 
       post {
-        always { junit allowEmptyResults: true, testResults: 'tfsec-report.xml' }
+        always {
+          junit allowEmptyResults: true, testResults: 'tfsec-report.xml'
+        }
       }
     }
 
     stage('Plan') {
       steps {
-        sh 'terraform plan -input=false -out=tfplan'
-        sh 'terraform show -no-color tfplan > tfplan.txt'
+        bat 'terraform plan -input=false -out=tfplan'
+        bat 'terraform show -no-color tfplan > tfplan.txt'
         archiveArtifacts artifacts: 'tfplan, tfplan.txt', fingerprint: true
       }
     }
 
     stage('Approval') {
-      when { branch 'main' }
+      when {
+        branch 'main'
+      }
+
       steps {
         timeout(time: 30, unit: 'MINUTES') {
           input message: 'Apply the archived plan to the cloud account?',
@@ -62,14 +69,27 @@ pipeline {
     }
 
     stage('Apply') {
-      when { branch 'main' }
-      steps { sh 'terraform apply -input=false tfplan' }
+      when {
+        branch 'main'
+      }
+
+      steps {
+        bat 'terraform apply -input=false tfplan'
+      }
     }
   }
 
   post {
-    success { echo 'Pipeline completed successfully.' }
-    failure { echo 'Pipeline failed — inspect the stage that went red.' }
-    always { cleanWs() }
+    success {
+      echo 'Pipeline completed successfully.'
+    }
+
+    failure {
+      echo 'Pipeline failed — inspect the stage that went red.'
+    }
+
+    always {
+      cleanWs()
+    }
   }
 }
